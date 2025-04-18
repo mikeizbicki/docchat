@@ -12,3 +12,7 @@ docchat> what language is the document written in?
 Spanish.
 docchat> 
 ```
+
+What is stemming?
+
+Convert all the words like "sun", "sunny", "suns" into "sun"

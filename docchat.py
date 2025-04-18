@@ -5,6 +5,9 @@ load_dotenv()
 
 def llm(messages, temperature=1):
     '''
+    This function is my interface for calling the LLM.
+    The messages argument should be a list of dictionaries.
+
     >>> llm([
     ...     {'role': 'system', 'content': 'You are a helpful assistant.'},
     ...     {'role': 'user', 'content': 'What is the capital of France?'},
@@ -26,14 +29,6 @@ def chunk_text_by_words(text, max_words=5, overlap=2):
     """
     Splits text into overlapping chunks by word count.
 
-    Args:
-        text (str): The input document as a string.
-        max_words (int): Maximum words per chunk.
-        overlap (int): Number of overlapping words between chunks.
-
-    Returns:
-        List[str]: A list of word-based text chunks.
-
     Examples:
         >>> text = "The quick brown fox jumps over the lazy dog. It was a sunny day and the birds were singing."
         >>> chunks = chunk_text_by_words(text, max_words=5, overlap=2)
@@ -46,7 +41,7 @@ def chunk_text_by_words(text, max_words=5, overlap=2):
         >>> chunks[4]
         'sunny day and the birds'
         >>> chunks[-1]
-        'the birds were singing.'
+        'singing.'
     """
     words = text.split()
     chunks = []
@@ -61,30 +56,70 @@ def chunk_text_by_words(text, max_words=5, overlap=2):
     return chunks
 
 
-import string
+import spacy
 
-def score_chunk(chunk: str, query: str) -> float:
+def load_spacy_model(language: str):
     """
-    Scores a chunk against a user query using Jaccard similarity of word sets.
+    Loads a spaCy model for the specified language.
+    """
+    LANGUAGE_MODELS = {
+        'french': 'fr_core_news_sm',
+        'german': 'de_core_news_sm',
+        'spanish': 'es_core_news_sm',
+        'english': 'en_core_web_sm',
+    }
+
+    if language not in LANGUAGE_MODELS:
+        raise ValueError(f"Unsupported language: {language}")
+
+    return spacy.load(LANGUAGE_MODELS[language])
+
+
+def score_chunk(chunk: str, query: str, language: str = "french") -> float:
+    """
+    Scores a chunk against a user query using Jaccard similarity of lemmatized word sets
+    with stopword removal, using spaCy for multilingual support.
 
     Args:
-        chunk (str): The text chunk from the document.
-        query (str): The user query string.
+        chunk (str): The text chunk to compare.
+        query (str): The user query.
+        language (str): Language code (e.g., 'french', 'english', 'spanish').
 
     Returns:
-        float: A score between 0 and 1 indicating relevance (1 = most relevant).
+        float: Jaccard similarity score.
 
-    Examples:
-        >>> score_chunk("Python is a programming language.", "What is Python?")
-        0.3333333333333333
-        >>> score_chunk("The sun is hot and bright.", "How hot is the sun?")
-        0.5714285714285714
-        >>> score_chunk("Bananas are yellow.", "How do airplanes fly?")
+    Examples (French):
+        >>> round(score_chunk("Le soleil est brillant et chaud.", "Quelle est la température du soleil ?", language="french"), 2)
+        0.33
+        >>> round(score_chunk("La voiture rouge roule rapidement.", "Quelle est la couleur de la voiture ?", language="french"), 2)
+        0.25
+        >>> score_chunk("Les bananes sont jaunes.", "Comment fonctionnent les avions ?", language="french")
+        0.0
+
+    Examples (Spanish):
+        >>> round(score_chunk("El sol es brillante y caliente.", "¿Qué temperatura tiene el sol?", language="spanish"), 2)
+        0.33
+        >>> round(score_chunk("El coche rojo va muy rápido.", "¿De qué color es el coche?", language="spanish"), 2)
+        0.25
+        >>> score_chunk("Los plátanos son amarillos.", "¿Cómo vuelan los aviones?", language="spanish")
+        0.0
+
+    Examples (English):
+        >>> round(score_chunk("The sun is bright and hot.", "How hot is the sun?", language="english"), 2)
+        0.5
+        >>> round(score_chunk("The red car is speeding down the road.", "What color is the car?", language="english"), 2)
+        0.25
+        >>> score_chunk("Bananas are yellow.", "How do airplanes fly?", language="english")
         0.0
     """
+    nlp = load_spacy_model(language)
+
     def preprocess(text):
-        text = text.lower().translate(str.maketrans("", "", string.punctuation))
-        return set(text.split())
+        doc = nlp(text.lower())
+        return set(
+            token.lemma_ for token in doc
+            if token.is_alpha and not token.is_stop
+        )
 
     chunk_words = preprocess(chunk)
     query_words = preprocess(query)
@@ -97,7 +132,7 @@ def score_chunk(chunk: str, query: str) -> float:
 
     return len(intersection) / len(union)
 
-
+    
 if __name__ == '__main__':
     messages = []
     messages.append({
