@@ -6,14 +6,24 @@ on:
     branches: ['*']
 jobs:
   tests:
+    strategy:
+      matrix:
+        python: [3.8, 3.9]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
+      - name: Set up Python ${{matrix.python}}
+        uses: actions/setup-python@v2
         with:
-          python-version: 3.12
-      - name: run tests
+          python-version: ${{matrix.python}}
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
-          python -m doctest docchat.py
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Run linter
+        run: |
+          pip3 install flake8 pep8-naming
+          flake8 .
+      - name: Run tests
+        run: |
+          python -m doctest Fixme.py
